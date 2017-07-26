@@ -67,9 +67,9 @@ struct dentry *brcmf_debugfs_get_devdir(struct brcmf_pub *drvr)
 int brcmf_debugfs_add_entry(struct brcmf_pub *drvr, const char *fn,
 			    int (*read_fn)(struct seq_file *seq, void *data))
 {
-	struct dentry *e;
+	struct dentry *e = NULL;
 
-	e = debugfs_create_devm_seqfile(drvr->bus_if->dev, fn,
-					drvr->dbgfs_dir, read_fn);
+	//e = debugfs_create_devm_seqfile(drvr->bus_if->dev, fn,
+	//				drvr->dbgfs_dir, read_fn);
 	return PTR_ERR_OR_ZERO(e);
 }

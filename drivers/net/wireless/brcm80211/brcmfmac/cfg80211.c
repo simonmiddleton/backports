@@ -657,7 +657,6 @@ static bool brcmf_is_ibssmode(struct brcmf_cfg80211_vif *vif)
 
 static struct wireless_dev *brcmf_cfg80211_add_iface(struct wiphy *wiphy,
 						     const char *name,
-						     unsigned char name_assign_type,
 						     enum nl80211_iftype type,
 						     u32 *flags,
 						     struct vif_params *params)
@@ -681,7 +680,7 @@ static struct wireless_dev *brcmf_cfg80211_add_iface(struct wiphy *wiphy,
 	case NL80211_IFTYPE_P2P_CLIENT:
 	case NL80211_IFTYPE_P2P_GO:
 	case NL80211_IFTYPE_P2P_DEVICE:
-		wdev = brcmf_p2p_add_vif(wiphy, name, name_assign_type, type, flags, params);
+		wdev = brcmf_p2p_add_vif(wiphy, name, 0/*unused*/, type, flags, params);
 		if (!IS_ERR(wdev))
 			brcmf_cfg80211_update_proto_addr_mode(wdev);
 		return wdev;
@@ -1294,7 +1293,7 @@ static void brcmf_link_down(struct brcmf_cfg80211_vif *vif, u16 reason)
 		}
 		clear_bit(BRCMF_VIF_STATUS_CONNECTED, &vif->sme_state);
 		cfg80211_disconnected(vif->wdev.netdev, reason, NULL, 0,
-				      true, GFP_KERNEL);
+				      GFP_KERNEL);
 
 	}
 	clear_bit(BRCMF_VIF_STATUS_CONNECTING, &vif->sme_state);
@@ -1960,7 +1959,7 @@ brcmf_cfg80211_disconnect(struct wiphy *wiphy, struct net_device *ndev,
 
 	clear_bit(BRCMF_VIF_STATUS_CONNECTED, &ifp->vif->sme_state);
 	clear_bit(BRCMF_VIF_STATUS_CONNECTING, &ifp->vif->sme_state);
-	cfg80211_disconnected(ndev, reason_code, NULL, 0, true, GFP_KERNEL);
+	cfg80211_disconnected(ndev, reason_code, NULL, 0, GFP_KERNEL);
 
 	memcpy(&scbval.ea, &profile->bssid, ETH_ALEN);
 	scbval.val = cpu_to_le32(reason_code);
@@ -2451,7 +2450,7 @@ static void brcmf_fill_bss_param(struct brcmf_if *ifp, struct station_info *si)
 
 static s32
 brcmf_cfg80211_get_station(struct wiphy *wiphy, struct net_device *ndev,
-			   const u8 *mac, struct station_info *sinfo)
+			   u8 *mac, struct station_info *sinfo)
 {
 	struct brcmf_if *ifp = netdev_priv(ndev);
 	s32 err = 0;
@@ -2618,7 +2617,6 @@ static s32 brcmf_inform_single_bss(struct brcmf_cfg80211_info *cfg,
 	brcmf_dbg(CONN, "Signal: %d\n", notify_signal);
 
 	bss = cfg80211_inform_bss(wiphy, notify_channel,
-				  CFG80211_BSS_FTYPE_UNKNOWN,
 				  (const u8 *)bi->BSSID,
 				  0, notify_capability,
 				  notify_interval, notify_ie,
@@ -2726,7 +2724,7 @@ static s32 wl_inform_ibss(struct brcmf_cfg80211_info *cfg,
 	brcmf_dbg(CONN, "signal: %d\n", notify_signal);
 
 	bss = cfg80211_inform_bss(wiphy, notify_channel,
-				  CFG80211_BSS_FTYPE_UNKNOWN, bssid, 0,
+				  bssid, 0,
 				  notify_capability, notify_interval,
 				  notify_ie, notify_ielen, notify_signal,
 				  GFP_KERNEL);
@@ -4312,25 +4310,25 @@ brcmf_cfg80211_change_beacon(struct wiphy *wiphy, struct net_device *ndev,
 
 static int
 brcmf_cfg80211_del_station(struct wiphy *wiphy, struct net_device *ndev,
-			   struct station_del_parameters *params)
+			   u8 *mac)
 {
 	struct brcmf_cfg80211_info *cfg = wiphy_to_cfg(wiphy);
 	struct brcmf_scb_val_le scbval;
 	struct brcmf_if *ifp = netdev_priv(ndev);
 	s32 err;
 
-	if (!params->mac)
+	if (!mac)
 		return -EFAULT;
 
-	brcmf_dbg(TRACE, "Enter %pM\n", params->mac);
+	brcmf_dbg(TRACE, "Enter %pM\n", mac);
 
 	if (ifp->vif == cfg->p2p.bss_idx[P2PAPI_BSSCFG_DEVICE].vif)
 		ifp = cfg->p2p.bss_idx[P2PAPI_BSSCFG_PRIMARY].vif->ifp;
 	if (!check_vif_up(ifp->vif))
 		return -EIO;
 
-	memcpy(&scbval.ea, params->mac, ETH_ALEN);
-	scbval.val = cpu_to_le32(params->reason_code);
+	memcpy(&scbval.ea, mac, ETH_ALEN);
+	scbval.val = cpu_to_le32(WLAN_REASON_DEAUTH_LEAVING);
 	err = brcmf_fil_cmd_data_set(ifp, BRCMF_C_SCB_DEAUTHENTICATE_FOR_REASON,
 				     &scbval, sizeof(scbval));
 	if (err)
@@ -4342,7 +4340,7 @@ brcmf_cfg80211_del_station(struct wiphy *wiphy, struct net_device *ndev,
 
 static int
 brcmf_cfg80211_change_station(struct wiphy *wiphy, struct net_device *ndev,
-			      const u8 *mac, struct station_parameters *params)
+			     u8 *mac, struct station_parameters *params)
 {
 	struct brcmf_if *ifp = netdev_priv(ndev);
 	s32 err;
@@ -4589,7 +4587,7 @@ static int brcmf_convert_nl80211_tdls_oper(enum nl80211_tdls_operation oper)
 }
 
 static int brcmf_cfg80211_tdls_oper(struct wiphy *wiphy,
-				    struct net_device *ndev, const u8 *peer,
+				    struct net_device *ndev, u8 *peer,
 				    enum nl80211_tdls_operation oper)
 {
 	struct brcmf_if *ifp;
@@ -4992,7 +4990,7 @@ brcmf_notify_connect_status(struct brcmf_if *ifp,
 			chan = ieee80211_get_channel(cfg->wiphy, cfg->channel);
 			memcpy(profile->bssid, e->addr, ETH_ALEN);
 			wl_inform_ibss(cfg, ndev, e->addr);
-			cfg80211_ibss_joined(ndev, e->addr, chan, GFP_KERNEL);
+			cfg80211_ibss_joined(ndev, e->addr, GFP_KERNEL);
 			clear_bit(BRCMF_VIF_STATUS_CONNECTING,
 				  &ifp->vif->sme_state);
 			set_bit(BRCMF_VIF_STATUS_CONNECTED,
