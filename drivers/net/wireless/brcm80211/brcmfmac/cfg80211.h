@@ -14,8 +14,8 @@
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef _wl_cfg80211_h_
-#define _wl_cfg80211_h_
+#ifndef BRCMFMAC_CFG80211_H
+#define BRCMFMAC_CFG80211_H
 
 /* for brcmu_d11inf */
 #include <brcmu_d11.h>
@@ -35,7 +35,7 @@
 #define WL_SCAN_PASSIVE_TIME		120
 
 #define WL_ESCAN_BUF_SIZE		(1024 * 64)
-#define WL_ESCAN_TIMER_INTERVAL_MS	8000 /* E-Scan timeout */
+#define WL_ESCAN_TIMER_INTERVAL_MS	10000 /* E-Scan timeout */
 
 #define WL_ESCAN_ACTION_START		1
 #define WL_ESCAN_ACTION_CONTINUE	2
@@ -75,6 +75,8 @@
 
 #define BRCMF_VNDR_IE_P2PAF_SHIFT	12
 
+#define BRCMF_MAX_DEFAULT_KEYS		4
+
 
 /**
  * enum brcmf_scan_status - scan engine status
@@ -87,21 +89,6 @@ enum brcmf_scan_status {
 	BRCMF_SCAN_STATUS_BUSY,
 	BRCMF_SCAN_STATUS_ABORT,
 	BRCMF_SCAN_STATUS_SUPPRESS,
-};
-
-/**
- * enum wl_mode - driver mode of virtual interface.
- *
- * @WL_MODE_BSS: connects to BSS.
- * @WL_MODE_IBSS: operate as ad-hoc.
- * @WL_MODE_AP: operate as access-point.
- * @WL_MODE_P2P: provide P2P discovery.
- */
-enum wl_mode {
-	WL_MODE_BSS,
-	WL_MODE_IBSS,
-	WL_MODE_AP,
-	WL_MODE_P2P
 };
 
 /* dongle configuration */
@@ -140,11 +127,13 @@ struct brcmf_cfg80211_security {
  * @ssid: ssid of associated/associating ap.
  * @bssid: bssid of joined/joining ibss.
  * @sec: security information.
+ * @key: key information
  */
 struct brcmf_cfg80211_profile {
 	struct brcmf_ssid ssid;
 	u8 bssid[ETH_ALEN];
 	struct brcmf_cfg80211_security sec;
+	struct brcmf_wsec_key key[BRCMF_MAX_DEFAULT_KEYS];
 };
 
 /**
@@ -193,24 +182,25 @@ struct vif_saved_ie {
  * @ifp: lower layer interface pointer
  * @wdev: wireless device.
  * @profile: profile information.
- * @mode: operating mode.
  * @roam_off: roaming state.
  * @sme_state: SME state using enum brcmf_vif_status bits.
  * @pm_block: power-management blocked.
  * @list: linked list.
  * @mgmt_rx_reg: registered rx mgmt frame types.
+ * @mbss: Multiple BSS type, set if not first AP (not relevant for P2P).
  */
 struct brcmf_cfg80211_vif {
 	struct brcmf_if *ifp;
 	struct wireless_dev wdev;
 	struct brcmf_cfg80211_profile profile;
-	s32 mode;
 	s32 roam_off;
 	unsigned long sme_state;
 	bool pm_block;
 	struct vif_saved_ie saved_ie;
 	struct list_head list;
 	u16 mgmt_rx_reg;
+	bool mbss;
+	int is_11d;
 };
 
 /* association inform */
@@ -380,6 +370,8 @@ struct brcmf_cfg80211_vif_event {
  * @vif_list: linked list of vif instances.
  * @vif_cnt: number of vif instances.
  * @vif_event: vif event signalling.
+ * @wowl_enabled; set during suspend, is wowl used.
+ * @pre_wowl_pmmode: intermediate storage of pm mode during wowl.
  */
 struct brcmf_cfg80211_info {
 	struct wiphy *wiphy;
@@ -388,7 +380,6 @@ struct brcmf_cfg80211_info {
 	struct brcmf_btcoex_info *btcoex;
 	struct cfg80211_scan_request *scan_request;
 	struct mutex usr_sync;
-	struct brcmf_scan_results *bss_list;
 	struct brcmf_cfg80211_scan_req scan_req_int;
 	struct wl_cfg80211_bss_info *bss_info;
 	struct brcmf_cfg80211_ie ie;
@@ -402,7 +393,6 @@ struct brcmf_cfg80211_info {
 	bool ibss_starter;
 	bool pwr_save;
 	bool dongle_up;
-	bool roam_on;
 	bool scan_tried;
 	u8 *dcmd_buf;
 	u8 *extra_buf;
@@ -415,6 +405,8 @@ struct brcmf_cfg80211_info {
 	struct brcmf_cfg80211_vif_event vif_event;
 	struct completion vif_disabled;
 	struct brcmu_d11inf d11inf;
+	bool wowl_enabled;
+	u32 pre_wowl_pmmode;
 };
 
 /**
@@ -491,10 +483,12 @@ void brcmf_free_vif(struct brcmf_cfg80211_vif *vif);
 s32 brcmf_vif_set_mgmt_ie(struct brcmf_cfg80211_vif *vif, s32 pktflag,
 			  const u8 *vndr_ie_buf, u32 vndr_ie_len);
 s32 brcmf_vif_clear_mgmt_ies(struct brcmf_cfg80211_vif *vif);
-struct brcmf_tlv *brcmf_parse_tlvs(void *buf, int buflen, uint key);
+const struct brcmf_tlv *
+brcmf_parse_tlvs(const void *buf, int buflen, uint key);
 u16 channel_to_chanspec(struct brcmu_d11inf *d11inf,
 			struct ieee80211_channel *ch);
-u32 wl_get_vif_state_all(struct brcmf_cfg80211_info *cfg, unsigned long state);
+bool brcmf_get_vif_state_any(struct brcmf_cfg80211_info *cfg,
+			     unsigned long state);
 void brcmf_cfg80211_arm_vif_event(struct brcmf_cfg80211_info *cfg,
 				  struct brcmf_cfg80211_vif *vif);
 bool brcmf_cfg80211_vif_event_armed(struct brcmf_cfg80211_info *cfg);
@@ -507,4 +501,4 @@ void brcmf_set_mpc(struct brcmf_if *ndev, int mpc);
 void brcmf_abort_scanning(struct brcmf_cfg80211_info *cfg);
 void brcmf_cfg80211_free_netdev(struct net_device *ndev);
 
-#endif				/* _wl_cfg80211_h_ */
+#endif /* BRCMFMAC_CFG80211_H */

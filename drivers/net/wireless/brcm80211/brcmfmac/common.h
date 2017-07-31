@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2013 Broadcom Corporation
+/* Copyright (c) 2014 Broadcom Corporation
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -13,12 +12,9 @@
  * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-#ifndef BRCMFMAC_NVRAM_H
-#define BRCMFMAC_NVRAM_H
+#ifndef BRCMFMAC_COMMON_H
+#define BRCMFMAC_COMMON_H
 
+extern const u8 ALLFFMAC[ETH_ALEN];
 
-void *brcmf_nvram_strip(const struct firmware *nv, u32 *new_length);
-void brcmf_nvram_free(void *nvram);
-
-
-#endif /* BRCMFMAC_NVRAM_H */
+#endif /* BRCMFMAC_COMMON_H */

@@ -18,8 +18,8 @@
  * Common types *
  */
 
-#ifndef _BRCMF_H_
-#define _BRCMF_H_
+#ifndef BRCMFMAC_CORE_H
+#define BRCMFMAC_CORE_H
 
 #include "fweh.h"
 
@@ -28,8 +28,6 @@
 
 /* For supporting multiple interfaces */
 #define BRCMF_MAX_IFS	16
-
-#define DOT11_MAX_DEFAULT_KEYS	4
 
 /* Small, medium and maximum buffer size for dcmd
  */
@@ -48,16 +46,6 @@
  * ethtool driver info which uses 32 bytes as well.
  */
 #define BRCMF_DRIVER_FIRMWARE_VERSION_LEN	32
-
-/* Bus independent dongle command */
-struct brcmf_dcmd {
-	uint cmd;		/* common dongle cmd definition */
-	void *buf;		/* pointer to user buffer */
-	uint len;		/* length of user buffer */
-	u8 set;			/* get or set request (optional) */
-	uint used;		/* bytes read or written (optional) */
-	uint needed;		/* bytes needed (optional) */
-};
 
 /**
  * struct brcmf_ampdu_rx_reorder - AMPDU receive reorder info
@@ -83,6 +71,35 @@ struct brcmf_proto;	/* device communication protocol info */
 struct brcmf_cfg80211_dev; /* cfg80211 device info */
 struct brcmf_fws_info; /* firmware signalling info */
 
+/*
+ * struct brcmf_rev_info
+ *
+ * The result field stores the error code of the
+ * revision info request from firmware. For the
+ * other fields see struct brcmf_rev_info_le in
+ * fwil_types.h
+ */
+struct brcmf_rev_info {
+	int result;
+	u32 vendorid;
+	u32 deviceid;
+	u32 radiorev;
+	u32 chiprev;
+	u32 corerev;
+	u32 boardid;
+	u32 boardvendor;
+	u32 boardrev;
+	u32 driverrev;
+	u32 ucoderev;
+	u32 bus;
+	u32 chipnum;
+	u32 phytype;
+	u32 phyrev;
+	u32 anarev;
+	u32 chippkg;
+	u32 nvramrev;
+};
+
 /* Common structure for module and instance linkage */
 struct brcmf_pub {
 	/* Linkage ponters */
@@ -93,7 +110,6 @@ struct brcmf_pub {
 	/* Internal brcmf items */
 	uint hdrlen;		/* Total BRCMF header length (proto + bus) */
 	uint rxsz;		/* Rx buffer size bus module should use */
-	u8 wme_dp;		/* wme discard priority */
 
 	/* Dongle media info */
 	char fwver[BRCMF_DRIVER_FIRMWARE_VERSION_LEN];
@@ -113,6 +129,11 @@ struct brcmf_pub {
 
 	struct brcmf_ampdu_rx_reorder
 		*reorder_flows[BRCMF_AMPDU_RX_REORDER_MAXFLOWS];
+
+	u32 feat_flags;
+	u32 chip_quirks;
+
+	struct brcmf_rev_info revinfo;
 #ifdef DEBUG
 	struct dentry *dbgfs_dir;
 #endif
@@ -127,12 +148,12 @@ struct brcmf_fws_mac_descriptor;
  *
  * @BRCMF_NETIF_STOP_REASON_FWS_FC:
  *	netif stopped due to firmware signalling flow control.
- * @BRCMF_NETIF_STOP_REASON_BLOCK_BUS:
- *	netif stopped due to bus blocking.
+ * @BRCMF_NETIF_STOP_REASON_FLOW:
+ *	netif stopped due to flowring full.
  */
 enum brcmf_netif_stop_reason {
 	BRCMF_NETIF_STOP_REASON_FWS_FC = 1,
-	BRCMF_NETIF_STOP_REASON_BLOCK_BUS = 2
+	BRCMF_NETIF_STOP_REASON_FLOW = 2
 };
 
 /**
@@ -174,7 +195,7 @@ struct brcmf_skb_reorder_data {
 	u8 *reorder;
 };
 
-int brcmf_netdev_wait_pend8021x(struct net_device *ndev);
+int brcmf_netdev_wait_pend8021x(struct brcmf_if *ifp);
 
 /* Return pointer to interface name */
 char *brcmf_ifname(struct brcmf_pub *drvr, int idx);
@@ -182,14 +203,15 @@ char *brcmf_ifname(struct brcmf_pub *drvr, int idx);
 int brcmf_net_attach(struct brcmf_if *ifp, bool rtnl_locked);
 struct brcmf_if *brcmf_add_if(struct brcmf_pub *drvr, s32 bssidx, s32 ifidx,
 			      char *name, u8 *mac_addr);
-void brcmf_del_if(struct brcmf_pub *drvr, s32 bssidx);
+void brcmf_remove_interface(struct brcmf_pub *drvr, u32 bssidx);
+int brcmf_get_next_free_bsscfgidx(struct brcmf_pub *drvr);
 void brcmf_txflowblock_if(struct brcmf_if *ifp,
 			  enum brcmf_netif_stop_reason reason, bool state);
-u32 brcmf_get_chip_info(struct brcmf_if *ifp);
-void brcmf_txfinalize(struct brcmf_pub *drvr, struct sk_buff *txp,
+void brcmf_txfinalize(struct brcmf_pub *drvr, struct sk_buff *txp, u8 ifidx,
 		      bool success);
+void brcmf_netif_rx(struct brcmf_if *ifp, struct sk_buff *skb);
 
 /* Sets dongle media info (drv_version, mac address). */
 int brcmf_c_preinit_dcmds(struct brcmf_if *ifp);
 
-#endif				/* _BRCMF_H_ */
+#endif /* BRCMFMAC_CORE_H */
